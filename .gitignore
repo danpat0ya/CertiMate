@@ -1,0 +1,49 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+# =========================================
+# 🚨 Security & Secrets (보안 및 환경변수 방어막)
+# =========================================
+# DB 비밀번호, 카카오 키 등이 들어있는 설정 파일 업로드 차단!
+application.yml
+application*.yml
+application.properties
+application*.properties
+
+# (선택) 맥 OS 사용자를 위한 찌꺼기 파일 차단
+.DS_Store
