@@ -1,23 +1,30 @@
 import React, { useState } from 'react';
 import { 
   Calendar as CalIcon, MapPin, Navigation, 
-  Search, Filter, ChevronLeft, ChevronRight, 
-  CheckCircle, Clock, BellRing, Info
+  Search, ChevronLeft, ChevronRight, 
+  Clock, BellRing, Info
 } from 'lucide-react';
+import ExamLocationMap from '../components/ExamLocationMap'; // 🚨 카카오 지도 컴포넌트 import!
 
 const Calendar = () => {
-  // 상태 관리: 선택된 날짜, 필터(전체/내 일정), 지도 확대 여부
+  // 상태 관리: 선택된 날짜, 필터(전체/내 일정)
   const [activeFilter, setActiveFilter] = useState('mine'); // 'all' or 'mine'
   
-  // 가상의 일정 데이터 (REQ-SRVC-003 및 ERD 기반)
+  // 가상의 일정 데이터
   const mySchedules = [
     { id: 1, name: "산업안전산업기사 (필기)", date: "2026.05.20", dday: "D-11", type: "exam", color: "#D9A23A" },
     { id: 2, name: "정보처리산업기사 (실기 접수)", date: "2026.05.15", dday: "D-6", type: "reg", color: "#3478B8" }
   ];
 
+  // 🚨 현재 선택된 고사장 상태 관리 (기본값 설정)
+  const [selectedLocation, setSelectedLocation] = useState({
+    centerName: "서울디지털대학교",
+    address: "서울 강서구 화곡로 302"
+  });
+
   return (
     <main className="max-w-7xl mx-auto px-6 py-10">
-      {/* 상단 헤더 및 필터 (REQ-SRCH-001 상세 필터 반영) */}
+      {/* 상단 헤더 및 필터 */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h2 className="text-3xl font-black text-[#4A4F58] flex items-center">
@@ -45,7 +52,9 @@ const Calendar = () => {
 
       <div className="grid lg:grid-cols-12 gap-8">
         
-        {/* 1. 메인 캘린더 섹션 (REQ-SRVC-003) */}
+        {/* ======================================================== */}
+        {/* 1. 메인 캘린더 섹션 (후배님 기존 코드 그대로 유지!) */}
+        {/* ======================================================== */}
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
             <div className="flex justify-between items-center mb-8">
@@ -58,7 +67,6 @@ const Calendar = () => {
               </div>
             </div>
 
-            {/* 캘린더 그리드 - 가독성 보강 */}
             <div className="grid grid-cols-7 mb-4">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day} className="text-center text-[10px] font-black text-gray-300 uppercase tracking-widest py-2">{day}</div>
@@ -86,7 +94,6 @@ const Calendar = () => {
             </div>
           </div>
 
-          {/* 하단 범례 및 알림 설정 (REQ-SRVC-008) */}
           <div className="flex items-center justify-between p-6 bg-white rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex space-x-6">
               <div className="flex items-center text-[10px] font-bold text-gray-400">
@@ -97,15 +104,16 @@ const Calendar = () => {
               </div>
             </div>
             <button className="text-[10px] font-black text-[#3478B8] flex items-center hover:underline">
-              <BellRing size={14} className="mr-1" /> 알림 설정 관리 (REQ-016)
+              <BellRing size={14} className="mr-1" /> 알림 설정 관리
             </button>
           </div>
         </div>
 
-        {/* 2. 사이드바: D-Day 및 고사장 안내 (REQ-MAP-001~003) */}
+        {/* ======================================================== */}
+        {/* 2. 사이드바: D-Day 및 고사장 안내 */}
+        {/* ======================================================== */}
         <div className="lg:col-span-4 space-y-6">
           
-          {/* 다가오는 일정 리스트 (D-Day 연동) */}
           <div className="bg-[#4A4F58] p-8 rounded-[32px] text-white shadow-xl">
             <h3 className="text-lg font-bold mb-6 flex items-center tracking-tight">
               <Clock className="mr-2 text-[#3BAA7D]" size={18} /> 다가오는 일정
@@ -125,16 +133,15 @@ const Calendar = () => {
             </div>
           </div>
 
-          {/* 고사장 지도 위젯 (REQ-MAP-001~003 보강) */}
+          {/* 고사장 지도 위젯 (여기부터 카카오 지도 결합!) */}
           <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-black flex items-center">
-                <MapPin className="mr-2 text-[#3BAA7D]" size={18} /> 고사장 안내 (REQ-017)
+                <MapPin className="mr-2 text-[#3BAA7D]" size={18} /> 고사장 안내
               </h3>
               <Search size={16} className="text-gray-300 cursor-pointer hover:text-[#3478B8]" />
             </div>
 
-            {/* 필터 선택 (REQ-MAP-003) */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <select className="text-[10px] font-bold p-2 bg-gray-50 border border-gray-100 rounded-xl outline-none">
                 <option>서울특별시</option>
@@ -144,14 +151,13 @@ const Calendar = () => {
               </select>
             </div>
 
-            {/* 지도 영역 (Placeholder) */}
-            <div className="aspect-square bg-slate-100 rounded-[24px] mb-6 relative overflow-hidden border border-gray-100 group">
-              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-2 opacity-40">
-                <Navigation size={32} className="text-[#3478B8] animate-pulse" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-[#3478B8]">Loading Map Engine</span>
-              </div>
-              {/* 내 위치 기반 버튼 (REQ-MAP-002) */}
-              <button className="absolute bottom-4 right-4 bg-white p-3 rounded-2xl shadow-xl text-[#3478B8] hover:scale-110 transition-transform">
+            {/* 🚀 우리가 만든 진짜 카카오 지도 영역! */}
+            <div className="rounded-[24px] mb-6 relative overflow-hidden border border-gray-100 group">
+              <ExamLocationMap 
+                address={selectedLocation.address} 
+                centerName={selectedLocation.centerName} 
+              />
+              <button className="absolute bottom-4 right-4 z-10 bg-white p-3 rounded-2xl shadow-xl text-[#3478B8] hover:scale-110 transition-transform">
                 <Navigation size={18} fill="#3478B8" />
               </button>
             </div>
@@ -159,13 +165,14 @@ const Calendar = () => {
             <div className="space-y-3">
               <div className="p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-[#3478B8] transition cursor-pointer group">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-sm font-bold group-hover:text-[#3478B8]">서울디지털대학교</h4>
+                  <h4 className="text-sm font-bold group-hover:text-[#3478B8]">{selectedLocation.centerName}</h4>
                   <Info size={14} className="text-gray-300" />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">강서구 화곡로 302 | 1.2km</p>
+                <p className="text-[10px] text-gray-400 mt-1">{selectedLocation.address} | 1.2km</p>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </main>
