@@ -1,146 +1,355 @@
-import React from 'react';
-import { 
-  User, Award, BookOpen, Bookmark, 
+import React, { useState, useEffect } from 'react';
+import api from '../api/axios';
+import { useNavigate } from 'react-router-dom';
+import {
+  User, Award, BookOpen, Bookmark,
   Settings, Bell, ChevronRight, PieChart,
-  Calendar, CheckCircle2, Clock 
+  Calendar, CheckCircle2, Clock, X, Download, Activity,
+  ChevronLeft, CheckCircle, XCircle, RotateCcw, Zap
 } from 'lucide-react';
 
 const Profile = () => {
-  const userInfo = {
-    name: "유성찬",
+  const navigate = useNavigate();
+
+  const [userInfo, setUserInfo] = useState({
+    name: "로딩 중...",
     university: "서일대학교",
-    major: "소프트웨어 개발",
-    personality: "끊임없는 도전과 결정 장애",
-    status: "3학년 재학 중 (2027년 1월 졸업 예정)"
+    major: "로딩 중...",
+    personality: "로딩 중...",
+    status: "로딩 중...",
+    profileImage: null
+  });
+
+  const [dashboard, setDashboard] = useState({
+    certCount: 0,
+    scrapCount: 0,
+    recentScraps: [],
+    totalStudyTime: "0h",
+    cbtAccuracy: "0%",
+    heatmapData: [],
+    targetExam: null
+  });
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', major: '', interest: '', status: '', password: '' });
+
+  // 세션/오답노트 모달 상태
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    date: null,
+    view: 'sessions', // 'sessions' | 'notes'
+    sessions: [],
+    selectedSessionIdx: null,
+    loading: false,
+    currentIndex: 0
+  });
+
+  const fetchData = () => {
+    api.get('/auth/me').then(res => {
+      const data = res.data;
+      setUserInfo({
+        name: data.name || "이름 없음",
+        university: "서일대학교",
+        major: data.major || "미설정",
+        personality: data.interest || "미설정",
+        status: data.status || "미설정",
+        profileImage: data.profileImage || null
+      });
+      setEditForm({
+        name: data.name || '', major: data.major || '', interest: data.interest || '', status: data.status || '', password: '', profileImage: data.profileImage || ''
+      });
+    }).catch(err => console.error(err));
+
+    api.get('/user/dashboard').then(res => {
+      setDashboard(res.data);
+    }).catch(err => console.error(err));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    api.put('/auth/me', editForm)
+      .then(() => { setIsEditModalOpen(false); fetchData(); })
+      .catch(err => alert("수정에 실패했습니다."));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64Image = reader.result;
+      api.put('/auth/me', { ...editForm, profileImage: base64Image })
+        .then(() => {
+          fetchData();
+        })
+        .catch(err => {
+          console.error(err);
+          alert("프로필 사진 변경 실패");
+        });
+    };
+  };
+
+  const handleHeatmapClick = (date, count) => {
+    if (count === 0) return;
+    setModalState({ isOpen: true, date: date, view: 'sessions', sessions: [], selectedSessionIdx: null, loading: true, currentIndex: 0 });
+
+    api.get(`/user/quiz-history?date=${date}`)
+      .then(res => {
+        setModalState(prev => ({ ...prev, sessions: res.data, loading: false }));
+      })
+      .catch(err => {
+        console.error("오답노트 로드 실패:", err);
+        setModalState(prev => ({ ...prev, loading: false }));
+      });
+  };
+
+  const openNotes = (idx) => {
+    const session = modalState.sessions[idx];
+    navigate('/study', { state: { viewNotesSession: session } });
+  };
+
+  const openRetake = (idx) => {
+    const session = modalState.sessions[idx];
+    const incorrectRecords = session.records.filter(r => !r.isCorrect);
+
+    if (incorrectRecords.length === 0) {
+      alert("이 회차에는 틀린 문제가 없습니다! 완벽합니다! 🎉");
+      return;
+    }
+
+    navigate('/study', { state: { retakeSession: { ...session, records: incorrectRecords } } });
+  };
+
+  const renderHeatmap = () => {
+    const boxes = [];
+    const today = new Date();
+    for (let i = 119; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const offset = d.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(d.getTime() - offset)).toISOString().split('T')[0];
+
+      const countObj = dashboard.heatmapData?.find(h => h.date === localISOTime);
+      const count = countObj ? countObj.count : 0;
+
+      let bg = "bg-gray-200/60";
+      if (count > 0 && count <= 2) bg = "bg-[#3BAA7D]/30";
+      else if (count > 2 && count <= 5) bg = "bg-[#3BAA7D]/60";
+      else if (count > 5) bg = "bg-[#3BAA7D]";
+
+      boxes.push(
+        <div
+          key={localISOTime}
+          onClick={() => handleHeatmapClick(localISOTime, count)}
+          className={`w-3.5 h-3.5 rounded-sm ${bg} transition-all ${count > 0 ? 'cursor-pointer hover:ring-2 hover:ring-[#4A4F58]' : ''}`}
+          title={`${localISOTime}: ${count} 문제 풀이${count > 0 ? ' (클릭하여 보기)' : ''}`}
+        />
+      );
+    }
+    return <div className="flex flex-wrap gap-1.5 mt-4">{boxes}</div>;
+  };
+
+  // 모달 내부 렌더링
+  const renderModalContent = () => {
+    if (modalState.loading) return <div className="p-10 text-center text-gray-400 font-bold">데이터를 불러오는 중입니다...</div>;
+    if (modalState.sessions.length === 0) return <div className="p-10 text-center text-gray-400 font-bold">기록이 없습니다.</div>;
+
+    return (
+      <div className="p-6 space-y-4">
+        <h3 className="text-sm font-black text-gray-400 uppercase mb-4 tracking-widest">해당 날짜의 학습 회차</h3>
+        {modalState.sessions.map((session, idx) => (
+          <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-4">
+            <div>
+              <h4 className="text-lg font-black text-[#4A4F58]">{session.sessionNum}회차 학습</h4>
+              <p className="text-sm text-gray-500 font-bold mt-1">{session.timeLabel} • 총 {session.records.length}문제</p>
+            </div>
+            <div className="flex space-x-3">
+              <button onClick={() => openNotes(idx)} className="px-5 py-3 bg-[#3BAA7D]/10 text-[#3BAA7D] font-black rounded-xl hover:bg-[#3BAA7D]/20 transition text-sm">
+                오답 노트
+              </button>
+              <button onClick={() => openRetake(idx)} className="px-5 py-3 bg-[#E61E2B]/10 text-[#E61E2B] font-black rounded-xl hover:bg-[#E61E2B]/20 transition text-sm">
+                틀린 문제 다시 풀기
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-[#EAECEF] pb-20 font-sans">
+    <div className="min-h-screen bg-[#EAECEF] pb-20 font-sans print-area">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print-area, .print-area * { visibility: visible; }
+          .print-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; }
+          .no-print { display: none !important; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #CBD5E1; border-radius: 20px; }
+      `}</style>
+
+      {/* 헤더 및 스탯 (기존과 동일) */}
       <header className="bg-white border-b border-gray-200 pt-16 pb-12 px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-10">
-          <div className="relative">
-            <div className="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-[#3478B8] to-[#3BAA7D] flex items-center justify-center text-white text-4xl font-black shadow-2xl shadow-[#3478B8]/20">
-              {userInfo.name[0]}
-            </div>
-            <button className="absolute -bottom-2 -right-2 bg-white p-2 rounded-xl shadow-lg border border-gray-100 text-gray-400 hover:text-[#3478B8]">
+          <div className="relative group">
+            {userInfo.profileImage ? (
+              <img src={userInfo.profileImage} alt="Profile" className="w-32 h-32 rounded-[40px] object-cover shadow-2xl" />
+            ) : (
+              <div className="w-32 h-32 rounded-[40px] bg-gradient-to-tr from-[#3478B8] to-[#3BAA7D] flex items-center justify-center text-white text-4xl font-black shadow-2xl">
+                {userInfo.name ? userInfo.name[0] : ""}
+              </div>
+            )}
+            <label className="no-print absolute -bottom-2 -right-2 bg-white p-2 rounded-xl shadow-lg border border-gray-100 text-gray-400 hover:text-[#3478B8] cursor-pointer">
               <Settings size={18} />
-            </button>
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
           </div>
-          
           <div className="flex-1 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start space-x-3 mb-2">
-              <h2 className="text-3xl font-black text-[#4A4F58]">{userInfo.name}</h2>
-              <span className="bg-[#3478B8]/10 text-[#3478B8] text-[10px] font-black px-2 py-1 rounded uppercase tracking-tighter">Premium Member</span>
-            </div>
+            <h2 className="text-3xl font-black text-[#4A4F58] mb-2">{userInfo.name}</h2>
             <p className="text-[#3BAA7D] font-bold text-sm mb-4">{userInfo.university} | {userInfo.major}</p>
-            <div className="flex flex-wrap justify-center md:justify-start gap-2">
-              <span className="text-[11px] bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold"># {userInfo.personality}</span>
-              <span className="text-[11px] bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg font-bold"># {userInfo.status}</span>
-            </div>
           </div>
-
-          <div className="flex space-x-4">
-            <button className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition group">
-              <Bell size={20} className="text-gray-400 group-hover:text-[#D9A23A]" />
-            </button>
-            <button className="px-8 py-4 bg-[#3478B8] text-white rounded-2xl font-black text-sm shadow-xl shadow-[#3478B8]/20 hover:bg-[#2e69a3] transition">
-              프로필 수정
-            </button>
+          <div className="flex space-x-4 no-print">
+            <button onClick={() => window.print()} className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm text-gray-400 hover:text-[#3BAA7D]"><Download size={20} /></button>
+            <button className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm text-gray-400"><Bell size={20} /></button>
+            <button onClick={() => setIsEditModalOpen(true)} className="px-8 py-4 bg-[#3478B8] text-white rounded-2xl font-black text-sm shadow-xl">내정보 수정</button>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 mt-12 space-y-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <StatCard icon={<Award className="text-[#3478B8]" />} label="보유 자격증" value="1" />
-          <StatCard icon={<Bookmark className="text-[#D9A23A]" />} label="스크랩 종목" value="12" />
-          <StatCard icon={<PieChart className="text-[#3BAA7D]" />} label="CBT 정답률" value="84%" />
-          <StatCard icon={<Clock className="text-gray-400" />} label="학습 시간" value="128h" />
+          <StatCard icon={<Award className="text-[#3478B8]" />} label="보유 자격증" value={dashboard.certCount} />
+          <StatCard icon={<Bookmark className="text-[#D9A23A]" />} label="스크랩 종목" value={dashboard.scrapCount} />
+          <StatCard icon={<PieChart className="text-[#3BAA7D]" />} label="CBT 정답률" value={dashboard.cbtAccuracy} />
+          <StatCard icon={<Clock className="text-gray-400" />} label="학습 시간" value={dashboard.totalStudyTime} />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-black mb-6 flex items-center">
-                <CheckCircle2 className="mr-3 text-[#3BAA7D]" size={20} /> 보유 자격증
-              </h3>
-              <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center group cursor-pointer hover:border-[#3BAA7D] transition">
-                <div>
-                  <h4 className="font-bold text-[#4A4F58]">정보처리산업기사</h4>
-                  <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase text-left">Certified by Q-Net</p>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-black text-[#3BAA7D] uppercase bg-[#3BAA7D]/10 px-2 py-1 rounded">Verified</span>
-                </div>
-              </div>
+              <h3 className="text-lg font-black mb-2 flex items-center text-[#4A4F58]"><Activity className="mr-3 text-[#3BAA7D]" size={20} /> 꾸준한 학습의 흔적</h3>
+              <p className="text-xs text-gray-400 font-bold mb-4">잔디를 클릭하면 회차별 오답노트나 다시 풀기를 할 수 있습니다.</p>
+              {renderHeatmap()}
             </section>
-
             <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
-              <h3 className="text-lg font-black mb-6 flex items-center">
-                <Calendar className="mr-3 text-[#3478B8]" size={20} /> 준비 중인 시험 (D-Day)
-              </h3>
-              <div className="p-6 bg-[#3478B8]/5 border border-[#3478B8]/20 rounded-2xl flex justify-between items-center">
-                <div className="flex items-center space-x-4">
-                  <div className="w-1.5 h-10 bg-[#D9A23A] rounded-full"></div>
-                  <div className="text-left">
-                    <h4 className="font-bold text-[#4A4F58]">산업안전산업기사 (필기)</h4>
-                    <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Exam Date: 2026.05.20</p>
+              <h3 className="text-lg font-black mb-6 flex items-center text-[#4A4F58]"><Calendar className="mr-3 text-[#3478B8]" size={20} /> 준비 중인 시험 (D-Day)</h3>
+              {dashboard.targetExam ? (
+                <div className="p-6 bg-[#3478B8]/5 border border-[#3478B8]/20 rounded-2xl">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-1.5 h-10 bg-[#D9A23A] rounded-full"></div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-[#4A4F58]">{dashboard.targetExam.certName} ({dashboard.targetExam.examType})</h4>
+                        <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Exam Date: {dashboard.targetExam.examDate}</p>
+                      </div>
+                    </div>
+                    <div className="text-right"><span className="text-xl font-black text-[#D9A23A]">{dashboard.targetExam.dDay <= 0 ? "D-Day" : `D-${dashboard.targetExam.dDay}`}</span></div>
                   </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-[#3BAA7D] h-2.5 rounded-full" style={{ width: `${Math.min(100, Number(dashboard.targetExam.achievementRate))}%` }}></div></div>
+                  <p className="text-right text-xs text-gray-500 mt-2 font-bold">목표 달성률: {dashboard.targetExam.achievementRate}%</p>
                 </div>
-                <div className="text-right">
-                  <span className="text-xl font-black text-[#D9A23A]">D-11</span>
-                </div>
-              </div>
+              ) : (
+                <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl text-center text-gray-400 font-bold text-sm">목표 시험 일정이 없습니다.</div>
+              )}
             </section>
           </div>
-
           <div className="space-y-6">
-            <section className="bg-[#4A4F58] p-8 rounded-[32px] text-white shadow-xl text-left">
-              <h3 className="text-lg font-bold mb-6 flex items-center">
-                <Bookmark className="mr-3 text-[#D9A23A]" size={18} /> 최근 스크랩
-              </h3>
+            <section className="bg-[#4A4F58] p-8 rounded-[32px] text-white shadow-xl">
+              <h3 className="text-lg font-bold mb-6 flex items-center"><Bookmark className="mr-3 text-[#D9A23A]" size={18} /> 최근 스크랩</h3>
               <div className="space-y-4">
-                <ScrapItem title="리눅스마스터 2급" date="2일 전" />
-                <ScrapItem title="데이터분석준전문가" date="5일 전" />
-                <ScrapItem title="네트워크관리사 2급" date="1주 전" />
-              </div>
-              <button className="w-full mt-8 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-widest transition">
-                전체 스크랩 보기
-              </button>
-            </section>
-
-            {/* 에러가 발생했던 학습 리포트 섹션입니다. </section>으로 정확히 닫았습니다. */}
-            <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm text-left">
-              <h3 className="text-lg font-black mb-4 flex items-center text-[#4A4F58]">
-                <BookOpen className="mr-3 text-[#3478B8]" size={18} /> 학습 리포트
-              </h3>
-              <p className="text-[11px] text-gray-400 font-medium leading-relaxed mb-6">
-                최근 **데이터베이스 정규화** 세션에서 높은 정답률을 기록하였습니다.
-              </p>
-              <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-[#3478B8] h-full w-[84%] transition-all duration-1000"></div>
+                {dashboard.recentScraps?.length > 0 ? dashboard.recentScraps.map(s => <ScrapItem key={s.id} title={s.title} date="스크랩됨" />) : <p className="text-sm text-gray-400">없음</p>}
               </div>
             </section>
           </div>
         </div>
       </main>
+
+      {/* 세션(회차) 모달 */}
+      {modalState.isOpen && (
+        <div className="no-print fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#EAECEF] rounded-[32px] w-full max-w-xl shadow-2xl relative flex flex-col overflow-hidden">
+            <div className="bg-white px-8 py-6 border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
+              <h2 className="text-2xl font-black text-[#4A4F58]">{modalState.date} 학습 기록</h2>
+              <button onClick={() => setModalState({ isOpen: false, view: 'sessions', sessions: [], selectedSessionIdx: null, loading: false })} className="text-gray-400 hover:text-gray-600 bg-gray-50 p-2 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto max-h-[60vh] flex flex-col custom-scrollbar">
+              {renderModalContent()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && (
+        <div className="no-print fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onClick={() => setIsEditModalOpen(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            <h2 className="text-2xl font-black text-[#4A4F58] mb-6">내정보 수정</h2>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">이름</label>
+                <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">새 비밀번호 (변경시에만 입력)</label>
+                <input type="password" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })} placeholder="변경할 비밀번호를 입력하세요" className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">전공</label>
+                <select value={editForm.major} onChange={e => setEditForm({ ...editForm, major: e.target.value })} className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition appearance-none" required>
+                  <option value="">전공을 선택하세요</option>
+                  <option value="소프트웨어 개발">소프트웨어 개발</option>
+                  <option value="정보보안">정보보안</option>
+                  <option value="데이터베이스">데이터베이스</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">관심 분야</label>
+                <select value={editForm.interest} onChange={e => setEditForm({ ...editForm, interest: e.target.value })} className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition appearance-none" required>
+                  <option value="">관심 분야를 선택하세요</option>
+                  <option value="웹 개발">웹 개발 (Front/Back)</option>
+                  <option value="앱 개발">앱 개발</option>
+                  <option value="인공지능">인공지능 / 데이터 분석</option>
+                  <option value="클라우드">클라우드 / 인프라</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">재학 상태</label>
+                <select value={editForm.status} onChange={e => setEditForm({ ...editForm, status: e.target.value })} className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition appearance-none" required>
+                  <option value="">상태를 선택하세요</option>
+                  <option value="재학">재학</option>
+                  <option value="휴학">휴학</option>
+                  <option value="졸업">졸업</option>
+                  <option value="취업준비">취업준비</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-[#3478B8] text-white font-black py-4 rounded-xl mt-6 hover:bg-[#2e69a3] transition shadow-lg shadow-[#3478B8]/20">
+                수정 완료
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="bg-white p-6 rounded-[28px] border border-gray-100 text-center shadow-sm hover:shadow-md transition group">
-    <div className="flex justify-center mb-3 group-hover:scale-110 transition-transform">{icon}</div>
-    <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">{label}</p>
-    <p className="text-2xl font-black text-[#4A4F58]">{value}</p>
-  </div>
+  <div className="bg-white p-6 rounded-[28px] border border-gray-100 text-center shadow-sm"><div className="flex justify-center mb-3">{icon}</div><p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">{label}</p><p className="text-2xl font-black text-[#4A4F58]">{value}</p></div>
 );
-
 const ScrapItem = ({ title, date }) => (
-  <div className="flex justify-between items-center group cursor-pointer">
-    <span className="text-sm font-bold group-hover:text-[#D9A23A] transition-colors">{title}</span>
-    <span className="text-[10px] text-gray-400 font-medium">{date}</span>
-  </div>
+  <div className="flex justify-between items-center group cursor-pointer"><span className="text-sm font-bold truncate max-w-[180px]">{title}</span><span className="text-[10px] text-gray-400 ml-2">{date}</span></div>
 );
 
 export default Profile;

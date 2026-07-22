@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Cpu, Timer, CheckCircle, XCircle, Search, BookOpen, 
   RotateCcw, ChevronLeft, ChevronRight, Check, Zap, MapPin 
 } from 'lucide-react';
 
 const Study = () => {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState(""); 
   const [selectedCert, setSelectedCert] = useState(null);
   const [isStarted, setIsStarted] = useState(false);
   const [isGraded, setIsGraded] = useState(false);
+  const [isRetakeMode, setIsRetakeMode] = useState(false);
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [questions, setQuestions] = useState([]);
@@ -17,6 +20,58 @@ const Study = () => {
 
   // 타이머 상태 (90분 = 5400초)
   const [timeLeft, setTimeLeft] = useState(5400);
+
+  // 리테이크 초기화 로직
+  useEffect(() => {
+    if (location.state && location.state.retakeSession) {
+      const session = location.state.retakeSession;
+      
+      const parsedData = session.records.map(q => ({
+        learnId: q.learnId,
+        question: q.question,
+        options: q.options,
+        optionsArray: JSON.parse(q.options),
+        answer: q.correctAnswer,
+        explanation: q.explanation
+      }));
+      
+      setQuestions(parsedData);
+      setIsStarted(true);
+      setIsGraded(false);
+      setUserAnswers({});
+      setCurrentIndex(0);
+      setTimeLeft(5400); // 90 mins
+      setIsRetakeMode(true);
+      setSelectedCert({ id: 0, name: `[오답 다시풀기] ${session.timeLabel} 회차`, category: "오답노트", questions: parsedData.length, difficulty: "N/A" });
+    } else if (location.state && location.state.viewNotesSession) {
+      // 오답노트 보기
+      const session = location.state.viewNotesSession;
+      
+      const parsedData = session.records.map(q => ({
+        learnId: q.learnId,
+        question: q.question,
+        options: q.options,
+        optionsArray: JSON.parse(q.options),
+        answer: q.correctAnswer,
+        explanation: q.explanation
+      }));
+
+      // 이미 푼 기록 복원
+      const answers = {};
+      session.records.forEach(q => {
+        answers[q.learnId] = q.userAnswer;
+      });
+      
+      setQuestions(parsedData);
+      setIsStarted(true);
+      setIsGraded(true);
+      setUserAnswers(answers);
+      setCurrentIndex(0);
+      setTimeLeft(0);
+      setIsRetakeMode(false);
+      setSelectedCert({ id: 0, name: `[오답노트] ${session.timeLabel} 회차`, category: "오답노트", questions: parsedData.length, difficulty: "N/A" });
+    }
+  }, [location.state]);
 
   const certifications = [
     { id: 1, name: "정보처리산업기사", category: "국가기술", questions: 60, difficulty: "Level 3", match: 98 },
@@ -63,6 +118,7 @@ const Study = () => {
       setQuestions(parsedData);
       setIsStarted(true);
       setIsGraded(false);
+      setIsRetakeMode(false);
       setUserAnswers({});
       setCurrentIndex(0);
       setTimeLeft(5400); 
@@ -102,6 +158,11 @@ const Study = () => {
         isCorrect: correct
       };
     });
+
+    if (isRetakeMode) {
+      alert("채점이 완료되었습니다. (복습 모드에서는 결과가 저장되지 않습니다.)");
+      return;
+    }
 
     try {
       await fetch('http://localhost:8080/api/exams/save-history', {
@@ -364,7 +425,7 @@ const Study = () => {
             disabled={isGraded}
             className="w-full bg-[#3BAA7D] hover:bg-[#31926b] text-white py-6 rounded-[24px] transition-colors font-black text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-[#3BAA7D]/20 shrink-0 tracking-tight"
           >
-            {isGraded ? "채점 완료 (오답노트 저장됨)" : "답안 최종 제출하기"}
+            {isGraded ? "채점 완료" + (isRetakeMode ? "" : " (오답노트 저장됨)") : "답안 최종 제출하기"}
           </button>
 
         </div>
