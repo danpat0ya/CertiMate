@@ -10,6 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.security.Principal;
+import com.certimate.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -17,6 +20,8 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
@@ -55,4 +60,32 @@ public class AuthController {
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getMe(Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        return userRepository.findByEmail(principal.getName())
+                .map(user -> ResponseEntity.ok(new UserInfoResponse(user.getName(), user.getMajor(), user.getInterest(), user.getStatus(), user.getProfileImage())))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    public record UserInfoResponse(String name, String major, String interest, String status, String profileImage) {}
+
+    @PutMapping("/me")
+    public ResponseEntity<?> updateMe(Principal principal, @RequestBody UpdateProfileRequest request) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        return userRepository.findByEmail(principal.getName())
+                .map(user -> {
+                    String encodedPassword = null;
+                    if (request.password() != null && !request.password().isBlank()) {
+                        encodedPassword = passwordEncoder.encode(request.password());
+                    }
+                    user.updateProfile(request.name(), request.major(), request.interest(), request.status(), encodedPassword, request.profileImage());
+                    userRepository.save(user);
+                    return ResponseEntity.ok("프로필이 성공적으로 수정되었습니다.");
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    public record UpdateProfileRequest(String name, String major, String interest, String status, String password, String profileImage) {}
 }

@@ -34,7 +34,23 @@ public class User {
     @Column(name = "agree_consent", nullable = false)
     private Boolean agreeConsent;
 
+    @Column(name = "profile_image", columnDefinition = "LONGTEXT")
+    private String profileImage;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public void updateProfile(String name, String major, String interest, String status, String encodedPassword, String profileImage) {
+        if (name != null && !name.isBlank()) this.name = name;
+        this.major = major;
+        this.interest = interest;
+        this.status = status;
+        if (encodedPassword != null && !encodedPassword.isBlank()) {
+            this.password = encodedPassword;
+        }
+        if (profileImage != null && !profileImage.isBlank()) {
+            this.profileImage = profileImage;
+        }
+    }
 }
