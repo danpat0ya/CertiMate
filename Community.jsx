@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PenTool, ChevronRight, Folder, Trophy, Image as ImageIcon, Eye, ThumbsUp, List, Check, X } from 'lucide-react';
+import { PenTool, Folder, Trophy, Image as ImageIcon, Eye, ThumbsUp, List, Check, X } from 'lucide-react';
 
 const Community = () => {
   // 1. 공지사항 고정 데이터
@@ -17,10 +17,18 @@ const Community = () => {
   // 2. 전체 게시글 동적 State
   const [allPosts, setAllPosts] = useState(defaultNoticePosts);
 
-  // 3. BEST 인기글: DB 게시글 중 조회수(views) 내림차순 상위 5개 추출
+  // 3. BEST 인기글 정렬 상태 ('recommend': 추천순, 'views': 조회순)
+  const [bestSortTab, setBestSortTab] = useState('recommend');
+
+  // BEST 인기글: 선택된 정렬 방식(추천순/조회순) 내림차순 상위 5개 추출
   const bestPosts = [...allPosts]
     .filter(post => !post.isNotice)
-    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .sort((a, b) => {
+      if (bestSortTab === 'recommend') {
+        return (b.recommendations || 0) - (a.recommendations || 0);
+      }
+      return (b.views || 0) - (a.views || 0);
+    })
     .slice(0, 5);
 
   // 3. DB에서 게시글 목록을 불러오는 함수
@@ -507,10 +515,20 @@ const Community = () => {
         <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-black text-slate-800">BEST 인기글</h2>
-            <div className="flex space-x-2 text-sm text-gray-400">
-              <span className="text-[#007BFF] font-bold">실시간</span>
-              <span className="cursor-pointer hover:text-slate-800">주간</span>
-              <span className="cursor-pointer hover:text-slate-800 flex items-center">더보기 <ChevronRight size={14}/></span>
+            <div className="flex items-center space-x-2 text-sm">
+              <span 
+                onClick={() => setBestSortTab('recommend')}
+                className={`cursor-pointer transition ${bestSortTab === 'recommend' ? 'text-[#007BFF] font-bold' : 'text-gray-400 hover:text-slate-800'}`}
+              >
+                추천순
+              </span>
+              <span className="text-gray-300">·</span>
+              <span 
+                onClick={() => setBestSortTab('views')}
+                className={`cursor-pointer transition ${bestSortTab === 'views' ? 'text-[#007BFF] font-bold' : 'text-gray-400 hover:text-slate-800'}`}
+              >
+                조회순
+              </span>
             </div>
           </div>
           <div className="space-y-4">
