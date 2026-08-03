@@ -5,7 +5,7 @@ import {
   User, Award, BookOpen, Bookmark,
   Settings, Bell, ChevronRight, PieChart,
   Calendar, CheckCircle2, Clock, X, Download, Activity,
-  ChevronLeft, CheckCircle, XCircle, RotateCcw, Zap
+  ChevronLeft, CheckCircle, XCircle, RotateCcw, Zap, ChevronDown
 } from 'lucide-react';
 
 const Profile = () => {
@@ -17,7 +17,8 @@ const Profile = () => {
     major: "로딩 중...",
     personality: "로딩 중...",
     status: "로딩 중...",
-    profileImage: null
+    profileImage: null,
+    agreeConsent: true
   });
 
   const [dashboard, setDashboard] = useState({
@@ -30,10 +31,12 @@ const Profile = () => {
     targetExam: null
   });
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', major: '', interest: '', status: '', password: '' });
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  
+  const [editForm, setEditForm] = useState({ name: '', major: '', interest: '', status: '', password: '', profileImage: '', agreeConsent: true });
 
-  // 세션/오답노트 모달 상태
   const [modalState, setModalState] = useState({
     isOpen: false,
     date: null,
@@ -47,16 +50,18 @@ const Profile = () => {
   const fetchData = () => {
     api.get('/auth/me').then(res => {
       const data = res.data;
+      const consent = data.agreeConsent !== undefined ? data.agreeConsent : true;
       setUserInfo({
         name: data.name || "이름 없음",
         university: "서일대학교",
         major: data.major || "미설정",
         personality: data.interest || "미설정",
         status: data.status || "미설정",
-        profileImage: data.profileImage || null
+        profileImage: data.profileImage || null,
+        agreeConsent: consent
       });
       setEditForm({
-        name: data.name || '', major: data.major || '', interest: data.interest || '', status: data.status || '', password: '', profileImage: data.profileImage || ''
+        name: data.name || '', major: data.major || '', interest: data.interest || '', status: data.status || '', password: '', profileImage: data.profileImage || '', agreeConsent: consent
       });
     }).catch(err => console.error(err));
 
@@ -69,10 +74,12 @@ const Profile = () => {
     fetchData();
   }, []);
 
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
+  const handleEditSubmit = () => {
     api.put('/auth/me', editForm)
-      .then(() => { setIsEditModalOpen(false); fetchData(); })
+      .then(() => { 
+        setEditForm(prev => ({ ...prev, password: '' })); 
+        fetchData(); 
+      })
       .catch(err => alert("수정에 실패했습니다."));
   };
 
@@ -92,6 +99,27 @@ const Profile = () => {
           alert("프로필 사진 변경 실패");
         });
     };
+  };
+
+  const handleConsentToggle = () => {
+    const newConsent = !userInfo.agreeConsent;
+    const updatedForm = { ...editForm, agreeConsent: newConsent };
+    api.put('/auth/me', updatedForm)
+      .then(() => { 
+        fetchData(); 
+        alert(newConsent ? "개인정보 수집 및 이용에 동의하셨습니다." : "개인정보 수집 및 이용 동의를 철회하셨습니다."); 
+      })
+      .catch(err => alert("상태 변경에 실패했습니다."));
+  };
+
+  const handleWithdraw = () => {
+    api.delete('/auth/me')
+      .then(() => {
+        alert("회원탈퇴가 완료되었습니다.");
+        localStorage.removeItem('isLoggedIn');
+        navigate('/login');
+      })
+      .catch(err => alert("회원탈퇴에 실패했습니다."));
   };
 
   const handleHeatmapClick = (date, count) => {
@@ -154,7 +182,6 @@ const Profile = () => {
     return <div className="flex flex-wrap gap-1.5 mt-4">{boxes}</div>;
   };
 
-  // 모달 내부 렌더링
   const renderModalContent = () => {
     if (modalState.loading) return <div className="p-10 text-center text-gray-400 font-bold">데이터를 불러오는 중입니다...</div>;
     if (modalState.sessions.length === 0) return <div className="p-10 text-center text-gray-400 font-bold">기록이 없습니다.</div>;
@@ -196,7 +223,7 @@ const Profile = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #CBD5E1; border-radius: 20px; }
       `}</style>
 
-      {/* 헤더 및 스탯 (기존과 동일) */}
+      {/* 헤더 및 스탯 */}
       <header className="bg-white border-b border-gray-200 pt-16 pb-12 px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-10">
           <div className="relative group">
@@ -216,10 +243,34 @@ const Profile = () => {
             <h2 className="text-3xl font-black text-[#4A4F58] mb-2">{userInfo.name}</h2>
             <p className="text-[#3BAA7D] font-bold text-sm mb-4">{userInfo.university} | {userInfo.major}</p>
           </div>
-          <div className="flex space-x-4 no-print">
+          <div className="flex space-x-4 no-print relative">
             <button onClick={() => window.print()} className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm text-gray-400 hover:text-[#3BAA7D]"><Download size={20} /></button>
             <button className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm text-gray-400"><Bell size={20} /></button>
-            <button onClick={() => setIsEditModalOpen(true)} className="px-8 py-4 bg-[#3478B8] text-white rounded-2xl font-black text-sm shadow-xl">내정보 수정</button>
+            
+            {/* 개인정보관리 토글 메뉴 */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                className="px-6 py-4 bg-[#3478B8] text-white rounded-2xl font-black text-sm shadow-xl flex items-center hover:bg-[#2e69a3] transition"
+              >
+                개인정보관리 <ChevronDown size={16} className="ml-2" />
+              </button>
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden text-sm font-bold animate-in fade-in slide-in-from-top-2">
+                  <button onClick={() => { setIsEditModalOpen(true); setIsDropdownOpen(false); }} className="w-full text-left px-5 py-4 hover:bg-gray-50 text-gray-700 border-b border-gray-100 transition">정보 수정</button>
+                  <div className="w-full px-5 py-4 flex justify-between items-center text-gray-700 border-b border-gray-100">
+                    <span>이용동의 설정</span>
+                    <div 
+                      onClick={handleConsentToggle}
+                      className={`w-10 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${userInfo.agreeConsent ? 'bg-[#3BAA7D]' : 'bg-gray-300'}`}
+                    >
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${userInfo.agreeConsent ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    </div>
+                  </div>
+                  <button onClick={() => { setIsWithdrawModalOpen(true); setIsDropdownOpen(false); }} className="w-full text-left px-5 py-4 hover:bg-red-50 text-red-500 transition">회원탈퇴</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -289,19 +340,16 @@ const Profile = () => {
         </div>
       )}
 
+      {/* 정보 수정 모달 */}
       {isEditModalOpen && (
         <div className="no-print fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onClick={() => setIsEditModalOpen(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-600"><X size={24} /></button>
-            <h2 className="text-2xl font-black text-[#4A4F58] mb-6">내정보 수정</h2>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
+            <h2 className="text-2xl font-black text-[#4A4F58] mb-6">정보 수정</h2>
+            <form onSubmit={(e) => { e.preventDefault(); handleEditSubmit(); setIsEditModalOpen(false); }} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-600 mb-1">이름</label>
                 <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition" required />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-600 mb-1">새 비밀번호 (변경시에만 입력)</label>
-                <input type="password" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })} placeholder="변경할 비밀번호를 입력하세요" className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-600 mb-1">전공</label>
@@ -334,10 +382,30 @@ const Profile = () => {
                   <option value="취업준비">취업준비</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">새 비밀번호 (변경시에만 입력)</label>
+                <input type="password" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })} placeholder="변경할 비밀번호를 입력하세요" className="w-full border border-gray-200 focus:border-[#3478B8] rounded-xl px-4 py-3 text-sm outline-none transition" />
+              </div>
               <button type="submit" className="w-full bg-[#3478B8] text-white font-black py-4 rounded-xl mt-6 hover:bg-[#2e69a3] transition shadow-lg shadow-[#3478B8]/20">
                 수정 완료
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. 회원탈퇴 모달 */}
+      {isWithdrawModalOpen && (
+        <div className="no-print fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-8 w-full max-w-sm shadow-2xl relative text-center">
+            <h2 className="text-2xl font-black text-red-500 mb-4">회원탈퇴</h2>
+            <p className="text-gray-500 font-bold text-sm mb-8 leading-relaxed">
+              정말 탈퇴하시겠습니까?<br/>탈퇴 시 모든 학습 기록과 스크랩이 영구적으로 삭제되며 복구할 수 없습니다.
+            </p>
+            <div className="flex space-x-3">
+              <button onClick={() => setIsWithdrawModalOpen(false)} className="flex-1 py-4 bg-gray-100 text-gray-600 font-black rounded-xl hover:bg-gray-200 transition">취소</button>
+              <button onClick={handleWithdraw} className="flex-1 py-4 bg-red-500 text-white font-black rounded-xl hover:bg-red-600 transition shadow-lg shadow-red-500/20">탈퇴하기</button>
+            </div>
           </div>
         </div>
       )}
