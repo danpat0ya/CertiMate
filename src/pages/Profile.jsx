@@ -35,6 +35,10 @@ const Profile = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   
+  const [myPosts, setMyPosts] = useState([]);
+  const [likedPosts, setLikedPosts] = useState([]);
+  const [activeTab, setActiveTab] = useState('my-posts');
+  
   const [editForm, setEditForm] = useState({ name: '', major: '', interest: '', status: '', password: '', profileImage: '', agreeConsent: true });
 
   const [modalState, setModalState] = useState({
@@ -67,6 +71,14 @@ const Profile = () => {
 
     api.get('/user/dashboard').then(res => {
       setDashboard(res.data);
+    }).catch(err => console.error(err));
+
+    api.get('/community/my-posts').then(res => {
+      setMyPosts(res.data);
+    }).catch(err => console.error(err));
+
+    api.get('/community/liked-posts').then(res => {
+      setLikedPosts(res.data);
     }).catch(err => console.error(err));
   };
 
@@ -284,12 +296,77 @@ const Profile = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
+          {/* 좌측 메인 영역 (70%) */}
           <div className="lg:col-span-2 space-y-6">
             <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
               <h3 className="text-lg font-black mb-2 flex items-center text-[#4A4F58]"><Activity className="mr-3 text-[#3BAA7D]" size={20} /> 꾸준한 학습의 흔적</h3>
               <p className="text-xs text-gray-400 font-bold mb-4">잔디를 클릭하면 회차별 오답노트나 다시 풀기를 할 수 있습니다.</p>
               {renderHeatmap()}
             </section>
+
+            {/* 커뮤니티 활동 (내가 쓴 글 & 좋아요 누른 글) */}
+            <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-black mb-6 flex items-center text-[#4A4F58]">
+                <BookOpen className="mr-3 text-[#3478B8]" size={20} /> 커뮤니티 활동
+              </h3>
+              <div className="flex border-b border-gray-200 mb-6">
+                <button 
+                  onClick={() => setActiveTab('my-posts')}
+                  className={`px-6 py-3 font-bold text-sm transition ${activeTab === 'my-posts' ? 'border-b-2 border-[#3478B8] text-[#3478B8]' : 'text-gray-400 hover:text-gray-600'}`}
+                >내가 쓴 글</button>
+                <button 
+                  onClick={() => setActiveTab('liked-posts')}
+                  className={`px-6 py-3 font-bold text-sm transition ${activeTab === 'liked-posts' ? 'border-b-2 border-[#3478B8] text-[#3478B8]' : 'text-gray-400 hover:text-gray-600'}`}
+                >좋아요 한 글</button>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {activeTab === 'my-posts' ? (
+                  myPosts.length > 0 ? (
+                    myPosts.map(post => (
+                      <div key={post.id} onClick={() => navigate('/community')} className="p-5 border border-gray-100 rounded-2xl hover:border-[#3478B8] cursor-pointer transition group">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-xs font-black text-[#3478B8] bg-[#3478B8]/10 px-3 py-1 rounded-full">{post.category}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(post.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="text-[#4A4F58] font-black group-hover:text-[#3478B8] transition line-clamp-1">{post.title}</h4>
+                        <div className="flex items-center text-xs text-gray-400 font-bold mt-3 space-x-3">
+                          <span className="flex items-center"><Activity size={12} className="mr-1" /> {post.views}</span>
+                          <span className="flex items-center"><Zap size={12} className="mr-1" /> {post.recommendations}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-10 text-center text-gray-400 font-bold text-sm bg-gray-50 rounded-2xl">
+                      아직 작성한 게시글이 없습니다. 커뮤니티에서 활동해 보세요!
+                    </div>
+                  )
+                ) : (
+                  likedPosts.length > 0 ? (
+                    likedPosts.map(post => (
+                      <div key={post.id} onClick={() => navigate('/community')} className="p-5 border border-gray-100 rounded-2xl hover:border-[#E61E2B] cursor-pointer transition group">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-xs font-black text-[#E61E2B] bg-[#E61E2B]/10 px-3 py-1 rounded-full">{post.category}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(post.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="text-[#4A4F58] font-black group-hover:text-[#E61E2B] transition line-clamp-1">{post.title}</h4>
+                        <div className="flex items-center text-xs text-gray-400 font-bold mt-3 space-x-3">
+                          <span className="flex items-center"><Activity size={12} className="mr-1" /> {post.views}</span>
+                          <span className="flex items-center"><Zap size={12} className="mr-1 text-[#E61E2B]" /> {post.recommendations}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-10 text-center text-gray-400 font-bold text-sm bg-gray-50 rounded-2xl">
+                      아직 좋아요를 누른 게시글이 없습니다. 마음에 드는 글에 추천을 눌러보세요!
+                    </div>
+                  )
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* 우측 사이드 영역 (30%) */}
+          <div className="space-y-6">
             <section className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
               <h3 className="text-lg font-black mb-6 flex items-center text-[#4A4F58]"><Calendar className="mr-3 text-[#3478B8]" size={20} /> 준비 중인 시험 (D-Day)</h3>
               {dashboard.targetExam ? (
@@ -311,8 +388,7 @@ const Profile = () => {
                 <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl text-center text-gray-400 font-bold text-sm">목표 시험 일정이 없습니다.</div>
               )}
             </section>
-          </div>
-          <div className="space-y-6">
+
             <section className="bg-[#4A4F58] p-8 rounded-[32px] text-white shadow-xl">
               <h3 className="text-lg font-bold mb-6 flex items-center"><Bookmark className="mr-3 text-[#D9A23A]" size={18} /> 최근 스크랩</h3>
               <div className="space-y-4">
