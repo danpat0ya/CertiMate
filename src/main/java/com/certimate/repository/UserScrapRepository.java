@@ -7,4 +7,5 @@ import java.util.List;
 public interface UserScrapRepository extends JpaRepository<UserScrap, Long> {
     int countByUser_Id(Long userId);
     List<UserScrap> findByUser_Id(Long userId);
+    void deleteByUser_Id(Long userId);
 }

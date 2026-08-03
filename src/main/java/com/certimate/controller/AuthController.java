@@ -65,11 +65,11 @@ public class AuthController {
     public ResponseEntity<?> getMe(Principal principal) {
         if (principal == null) return ResponseEntity.status(401).build();
         return userRepository.findByEmail(principal.getName())
-                .map(user -> ResponseEntity.ok(new UserInfoResponse(user.getName(), user.getMajor(), user.getInterest(), user.getStatus(), user.getProfileImage())))
+                .map(user -> ResponseEntity.ok(new UserInfoResponse(user.getName(), user.getMajor(), user.getInterest(), user.getStatus(), user.getProfileImage(), user.getAgreeConsent())))
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    public record UserInfoResponse(String name, String major, String interest, String status, String profileImage) {}
+    public record UserInfoResponse(String name, String major, String interest, String status, String profileImage, Boolean agreeConsent) {}
 
     @PutMapping("/me")
     public ResponseEntity<?> updateMe(Principal principal, @RequestBody UpdateProfileRequest request) {
@@ -80,12 +80,28 @@ public class AuthController {
                     if (request.password() != null && !request.password().isBlank()) {
                         encodedPassword = passwordEncoder.encode(request.password());
                     }
-                    user.updateProfile(request.name(), request.major(), request.interest(), request.status(), encodedPassword, request.profileImage());
+                    user.updateProfile(request.name(), request.major(), request.interest(), request.status(), encodedPassword, request.profileImage(), request.agreeConsent());
                     userRepository.save(user);
                     return ResponseEntity.ok("프로필이 성공적으로 수정되었습니다.");
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    public record UpdateProfileRequest(String name, String major, String interest, String status, String password, String profileImage) {}
+    public record UpdateProfileRequest(String name, String major, String interest, String status, String password, String profileImage, Boolean agreeConsent) {}
+
+    @DeleteMapping("/me")
+    public ResponseEntity<?> deleteMe(Principal principal, HttpServletResponse response) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        authService.withdraw(principal.getName());
+        
+        ResponseCookie cookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        return ResponseEntity.ok("회원탈퇴가 완료되었습니다.");
+    }
 }

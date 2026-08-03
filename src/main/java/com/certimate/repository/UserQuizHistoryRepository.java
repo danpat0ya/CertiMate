@@ -11,4 +11,5 @@ import java.util.List;
 public interface UserQuizHistoryRepository extends JpaRepository<UserQuizHistory, Long> {
     List<UserQuizHistory> findByUserIdAndSolvedAtAfter(Long userId, LocalDateTime startDate);
     List<UserQuizHistory> findByUserIdAndSolvedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
+    void deleteByUserId(Long userId);
 }

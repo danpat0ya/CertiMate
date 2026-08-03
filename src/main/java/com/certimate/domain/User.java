@@ -41,7 +41,7 @@ public class User {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    public void updateProfile(String name, String major, String interest, String status, String encodedPassword, String profileImage) {
+    public void updateProfile(String name, String major, String interest, String status, String encodedPassword, String profileImage, Boolean agreeConsent) {
         if (name != null && !name.isBlank()) this.name = name;
         this.major = major;
         this.interest = interest;
@@ -51,6 +51,9 @@ public class User {
         }
         if (profileImage != null && !profileImage.isBlank()) {
             this.profileImage = profileImage;
+        }
+        if (agreeConsent != null) {
+            this.agreeConsent = agreeConsent;
         }
     }
 }

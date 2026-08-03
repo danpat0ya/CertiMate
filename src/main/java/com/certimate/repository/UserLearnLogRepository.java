@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface UserLearnLogRepository extends JpaRepository<UserLearnLog, Long> {
     List<UserLearnLog> findByUser_Id(Long userId);
+    void deleteByUser_Id(Long userId);
 }

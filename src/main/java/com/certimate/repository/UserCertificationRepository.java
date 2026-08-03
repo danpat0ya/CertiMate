@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface UserCertificationRepository extends JpaRepository<UserCertification, Long> {
     int countByUser_Id(Long userId);
+    void deleteByUser_Id(Long userId);
 }

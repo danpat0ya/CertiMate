@@ -2,7 +2,11 @@ package com.certimate.service;
 
 import com.certimate.domain.User;
 import com.certimate.dto.AuthDtos.*;
+import com.certimate.repository.UserCertificationRepository;
+import com.certimate.repository.UserLearnLogRepository;
+import com.certimate.repository.UserQuizHistoryRepository;
 import com.certimate.repository.UserRepository;
+import com.certimate.repository.UserScrapRepository;
 import com.certimate.security.JwtProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +29,10 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final UserCertificationRepository userCertificationRepository;
+    private final UserScrapRepository userScrapRepository;
+    private final UserLearnLogRepository userLearnLogRepository;
+    private final UserQuizHistoryRepository userQuizHistoryRepository;
 
     // application.yml 에 적어둔 카카오 열쇠(REST API 키)를 가져옵니다.
     @Value("${kakao.client-id}")
@@ -150,5 +158,22 @@ public class AuthService {
             e.printStackTrace();
             throw new RuntimeException("카카오 로그인 중 서버 오류가 발생했습니다.");
         }
+    }
+
+    // ==========================================
+    // [4. 회원탈퇴]
+    // ==========================================
+    @Transactional
+    public void withdraw(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 이메일입니다."));
+        
+        Long userId = user.getId();
+        userCertificationRepository.deleteByUser_Id(userId);
+        userScrapRepository.deleteByUser_Id(userId);
+        userLearnLogRepository.deleteByUser_Id(userId);
+        userQuizHistoryRepository.deleteByUserId(userId);
+        
+        userRepository.delete(user);
     }
 }
